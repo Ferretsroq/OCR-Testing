@@ -43,6 +43,7 @@ void FindVerticesOfBox(std::vector<cv::Point> poly,
                        cv::Point2f& bottomLeft);
 
 void GenerateReferenceBox(Mat& inputImage, cv::Point2f* referenceBoxPoints);
+void TesseractOCR(Mat& inputImage);
 
 
 
@@ -99,46 +100,16 @@ int main(int argc, char * const * argv)
 
     std::vector<cv::Point> poly;
     cv::Point2f originalBoxPoints[4];
-    cv::Point2f topLeft = cv::Point2f(0,0);
-    cv::Point2f topRight = cv::Point2f(0,0);
-    cv::Point2f bottomRight = cv::Point2f(0,0);
-    cv::Point2f bottomLeft = cv::Point2f(0,0);
-
     double angle = 0;
+
     ExtractBoxPolygon(result, contours, poly, angle, originalBoxPoints);
 
     Point2f referenceBoxPoints[4];
     GenerateReferenceBox(result, referenceBoxPoints);
 
-    for(int corners=0; corners<4; corners++)
-    {
-      line(referenceBox, referenceBoxPoints[corners], referenceBoxPoints[(corners+1)%4], Scalar(0), 2, 8);
-    }
-    imshow("Reference Box", referenceBox);
-    Point center = Point(result.cols/2, result.rows/2);
-    cv::Mat center_rotation_matrix(2,3,CV_32FC1);
-    center_rotation_matrix = getRotationMatrix2D(center,angle, 1.0);
-   /* ApplyTransformToAPoint(originalBoxPoints[0], center_rotation_matrix);
-    ApplyTransformToAPoint(originalBoxPoints[1], center_rotation_matrix);
-    ApplyTransformToAPoint(originalBoxPoints[2], center_rotation_matrix);
-    ApplyTransformToAPoint(originalBoxPoints[3], center_rotation_matrix);*/
-    ApplyTransformToAPoint(topLeft, center_rotation_matrix);
-    ApplyTransformToAPoint(topRight, center_rotation_matrix);
-    ApplyTransformToAPoint(bottomRight, center_rotation_matrix);
-    ApplyTransformToAPoint(bottomLeft, center_rotation_matrix);
-
-
-  //  warpAffine(result, result, center_rotation_matrix, result.size());
-
-
-    imshow("Center Rotation", result);
-    waitKey(0);
 
     cv::Mat affine_matrix(3,3,CV_32FC1);
-    //affine_matrix = getAffineTransform(originalBoxPoints, referenceBoxPoints);
-    //warpAffine(result, result, affine_matrix, result.size());
     affine_matrix = getPerspectiveTransform(originalBoxPoints, referenceBoxPoints);
-    //affine_matrix = getPerspectiveTransform(ExtractBoxPolygon(result, contours, poly, angle), referenceBoxPoints);
     warpPerspective(result, result, affine_matrix, result.size());
 
     imshow("Transformed", result);
@@ -289,36 +260,7 @@ int main(int argc, char * const * argv)
     SweepForNoise(result);
     imshow("Noise Reduced Contours", result);
 
-
-    tesseract::TessBaseAPI tess;
-    tess.Init(NULL, "eng", tesseract::OEM_DEFAULT);
-    tess.SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
-    tess.SetImage((uchar*)result.data, result.cols, result.rows, 1, result.cols);
-        
-    // Get the text
-    char* out = tess.GetUTF8Text();
-    std::cout << out << std::endl;
-    //box
-    Boxa* bounds = tess.GetWords(NULL);
-    if(bounds)
-    {
-      l_int32 count = bounds->n;
-      for(int i=0; i<count; i++)
-      {
-        Box* b = bounds->box[i];
-        int x = b->x;
-        int y = b->y;
-        int w = b->w;
-        int h = b->h;
-        std::cout<<x<<" "<<y<<" "<<w<<" "<<h<<std::endl;
-        cv::rectangle(result, Point(x,y), Point((x+w),(y+h)), Scalar(0,255,255),1,8,0);
-      }
-    }
-    else
-    {
-      printf("\rNo text detected\n");
-    }
-    imshow("OCR'd Image", result);
+    TesseractOCR(result);
 
   }
   waitKey(0);
@@ -337,6 +279,42 @@ int main(int argc, char * const * argv)
 //------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------
 
+void TesseractOCR(Mat& inputImage)
+{
+  tesseract::TessBaseAPI tess;
+  tess.Init(NULL, "eng", tesseract::OEM_DEFAULT);
+  tess.SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
+  tess.SetImage((uchar*)inputImage.data, inputImage.cols, inputImage.rows, 1, inputImage.cols);
+
+  // Get the text
+  char* out = tess.GetUTF8Text();
+  std::cout << out << std::endl;
+  //box
+  Boxa* bounds = tess.GetWords(NULL);
+  if(bounds)
+  {
+    l_int32 count = bounds->n;
+    for(int i=0; i<count; i++)
+    {
+      Box* b = bounds->box[i];
+      int x = b->x;
+      int y = b->y;
+      int w = b->w;
+      int h = b->h;
+      std::cout<<x<<" "<<y<<" "<<w<<" "<<h<<std::endl;
+      cv::rectangle(inputImage, Point(x,y), Point((x+w),(y+h)), Scalar(0,255,255),1,8,0);
+    }
+  }
+  else
+  {
+    printf("\rNo text detected\n");
+  }
+  imshow("OCR'd Image", inputImage);
+
+}
+
+//------------------------------------------------------------------------------------
+// This function generates a reference box to use in transformations
 void GenerateReferenceBox(Mat& inputImage, cv::Point2f* referenceBoxPoints)
 {
   referenceBoxPoints[0] = cv::Point2f((inputImage.cols*14/15),(inputImage.rows*7/16));
@@ -412,7 +390,7 @@ void ExtractBoxPolygon(Mat& inputImage,
   ApplyTransformToAPoint(topRight, center_rotation_matrix);
   ApplyTransformToAPoint(bottomRight, center_rotation_matrix);
   ApplyTransformToAPoint(bottomLeft, center_rotation_matrix);
- // warpAffine(inputImage, inputImage, center_rotation_matrix, inputImage.size());
+  //warpAffine(inputImage, inputImage, center_rotation_matrix, inputImage.size());
 
 }
 
