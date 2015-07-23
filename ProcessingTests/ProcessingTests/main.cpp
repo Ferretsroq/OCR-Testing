@@ -97,7 +97,6 @@ int main(int argc, char * const * argv)
 
     ExtractContoursFromColorImage(inputImage, result, contours);
 
-   // std::vector<std::vector<cv::Point>>::iterator itc = contours.begin();
     std::vector<cv::Point> poly;
     cv::Point2f originalBoxPoints[4];
     cv::Point2f topLeft = cv::Point2f(0,0);
@@ -105,69 +104,8 @@ int main(int argc, char * const * argv)
     cv::Point2f bottomRight = cv::Point2f(0,0);
     cv::Point2f bottomLeft = cv::Point2f(0,0);
 
-
-    //cv::cvtColor(result, result, CV_GRAY2BGR);
-
     double angle = 0;
     ExtractBoxPolygon(result, contours, poly, angle, originalBoxPoints);
-    //imshow("Function Transform", result);
-    //waitKey(0);
-
-/*    itc = contours.begin();
-    while(itc != contours.end())
-    {
-      poly.clear();
-
-      cv::approxPolyDP(*itc, poly, 10, true);
-
-      if(poly.size() == 4)
-      {
-
-        double maxCosine = 0;
-        for(int j=2; j<5; j++)
-        {
-          double cosine = fabs(FindAngle(poly[j%4], poly[j-2], poly[j-1]));
-          maxCosine = MAX(maxCosine, cosine);
-        }
-        if(maxCosine<0.5)
-        {
-
-          polylines(result,poly,true,Scalar(255,255,255),5);
-          originalBoxPoints[0] = poly[1];
-          originalBoxPoints[1] = poly[0];
-          originalBoxPoints[2] = poly[3];
-          originalBoxPoints[3] = poly[2];
-          FindVerticesOfBox(poly, topLeft, topRight, bottomRight, bottomLeft);
-          ++itc;
-          angle = FindAngle(bottomRight, cv::Point2f((bottomLeft.x+15), (bottomLeft.y)), bottomLeft);
-
-
-
-        }
-        else
-        {
-          ++itc;
-        }
-      }
-      else
-      {
-        ++itc;
-      }
-    }*/
-
-    /*for(int i=0; i<contours.size(); i++)
-    {
-      Scalar color = Scalar(rand()%256,rand()%256,rand()%256);
-
-      cv::drawContours(result, contours,i, color,1);
-
-    }*/
-
-
-
-    //floodFill(result, Point(0,0), 0);
-
-    //imshow("Flood Fill", result);
 
     Point2f referenceBoxPoints[4];
     GenerateReferenceBox(result, referenceBoxPoints);
