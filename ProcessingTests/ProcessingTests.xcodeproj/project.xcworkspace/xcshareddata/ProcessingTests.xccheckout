@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>FCC5B40A-2A2A-4E98-82D2-597ACCF2FB9D</string>
+	<key>IDESourceControlProjectName</key>
+	<string>ProcessingTests</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>B48A22840DDE5528403F2C8A692E88654CCF3724</key>
+		<string>https://github.com/Ferretsroq/OCR-Testing.git</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>ProcessingTests/ProcessingTests.xcodeproj</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>B48A22840DDE5528403F2C8A692E88654CCF3724</key>
+		<string>../../..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>https://github.com/Ferretsroq/OCR-Testing.git</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>111</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>B48A22840DDE5528403F2C8A692E88654CCF3724</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>B48A22840DDE5528403F2C8A692E88654CCF3724</string>
+			<key>IDESourceControlWCCName</key>
+			<string>ProcessingTests</string>
+		</dict>
+	</array>
+</dict>
+</plist>

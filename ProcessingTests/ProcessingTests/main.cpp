@@ -29,7 +29,10 @@ void FillInHollowLetters(Mat& image);
 void SweepForNoise(Mat& image);
 void DetectFourthLetter(Mat& image, Mat& extractedImage);
 void ApplyTransformToAPoint(Point2f& point, Mat& transformMatrix);
-void ExtractContoursFromColorImage(Mat& inputImage, Mat& outputImage,std::vector<std::vector<cv::Point>>& contours);
+void ExtractContoursFromColorImage(Mat& inputImage,
+                                   Mat& outputImage,
+                                   std::vector<std::vector<cv::Point>>& contours);
+
 void ExtractBoxPolygon(Mat& inputImage,
                        std::vector<std::vector<cv::Point>>& contours,
                        std::vector<cv::Point>& poly,
@@ -44,9 +47,12 @@ void FindVerticesOfBox(std::vector<cv::Point> poly,
 
 void GenerateReferenceBox(Mat& inputImage, cv::Point2f* referenceBoxPoints);
 void TesseractOCR(Mat& inputImage);
-
-
-
+void GenerateRotationMatrix(Mat& inputImage,
+                            double& angle,
+                            cv::Point2f* topLeft,
+                            cv::Point2f* topRight,
+                            cv::Point2f* bottomRight,
+                            cv::Point2f* bottomLeft);
 
 int main(int argc, char * const * argv)
 {
@@ -76,7 +82,6 @@ int main(int argc, char * const * argv)
   //Make empty image structures
   cv::Mat inputImage;
 
-    
   //Enumerate through the image arguments. argv[1] is the detector xml file
   for(int input=0; input<(argc); input++)
   {
@@ -89,7 +94,6 @@ int main(int argc, char * const * argv)
     }
 
     imshow("Original Image", inputImage);
-
 
     std::vector<std::vector<cv::Point>> contours;
     cv::Mat result(inputImage.size(),CV_8UC1,cv::Scalar(255));
@@ -111,6 +115,7 @@ int main(int argc, char * const * argv)
     cv::Mat affine_matrix(3,3,CV_32FC1);
     affine_matrix = getPerspectiveTransform(originalBoxPoints, referenceBoxPoints);
     warpPerspective(result, result, affine_matrix, result.size());
+
 
     imshow("Transformed", result);
     waitKey(0);
@@ -235,10 +240,27 @@ int main(int argc, char * const * argv)
     imshow("New Transformed",result);
     imshow("Transformed U", extractedUContours);
 */
+    for(int j=0; j<result.rows; j++)
+    {
+      for(int i=0; i<result.cols; i++)
+      {
+        if(result.at<uchar>(j,i) != 0)
+        {
+          if(result.at<uchar>(j,i) >= 10 && result.at<uchar>(j,i) <= 150)
+          {
+            result.at<uchar>(j,i) = 128;
+          }
+          else if(result.at<uchar>(j,i) > 150)
+          {
+            result.at<uchar>(j,i) = 255;
+          }
+        }
+      }
+    }
     FillInHollowLetters(result);
 
     imshow("Hollow Letters", result);
-
+    waitKey(0);
 
     for(int i=0; i<result.cols; i++)
     {
@@ -264,9 +286,6 @@ int main(int argc, char * const * argv)
 
   }
   waitKey(0);
-
-
-
     
   return 0;
 }
@@ -279,6 +298,34 @@ int main(int argc, char * const * argv)
 //------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------
 
+//------------------------------------------------------------------------------------
+// This function generates the matrix necessary for rotating the image.
+// TODO: Make this function actually work
+void GenerateRotationMatrix(Mat& inputImage,
+                            double& angle,
+                            cv::Point2f* topLeft,
+                            cv::Point2f* topRight,
+                            cv::Point2f* bottomRight,
+                            cv::Point2f* bottomLeft)
+{
+  // This allows me to rotate about the center of the image rather than the origin
+  Point center = Point(inputImage.cols/2, inputImage.rows/2);
+  cv::Mat center_rotation_matrix(2,3,CV_32FC1);
+  printf("\rVerifying that the angle to be used is %f degrees\n.", angle*(180/M_PI));
+  center_rotation_matrix = getRotationMatrix2D(center,((-1*(angle*(180/M_PI)/6))), 0.8);
+  //center_rotation_matrix = getRotationMatrix2D(center, angle, 1.0);
+  //center_rotation_matrix = getRotationMatrix2D(center, (-1*angle), 1.0);
+  ApplyTransformToAPoint(*topLeft, center_rotation_matrix);
+  ApplyTransformToAPoint(*topRight, center_rotation_matrix);
+  ApplyTransformToAPoint(*bottomRight, center_rotation_matrix);
+  ApplyTransformToAPoint(*bottomLeft, center_rotation_matrix);
+  imshow("No Rotation", inputImage);
+  warpAffine(inputImage, inputImage, center_rotation_matrix, inputImage.size());
+  imshow("Just Rotation", inputImage);
+}
+
+//------------------------------------------------------------------------------------
+// This function runs the OCR package on an image and prints the text detected.
 void TesseractOCR(Mat& inputImage)
 {
   tesseract::TessBaseAPI tess;
@@ -337,7 +384,7 @@ void ExtractBoxPolygon(Mat& inputImage,
                        cv::Point2f* originalBoxPoints)
 {
   std::vector<std::vector<cv::Point>>::iterator itc = contours.begin();
-
+  Point center = Point(inputImage.cols/2, inputImage.rows/2);
   cv::Point2f topLeft;
   cv::Point2f topRight;
   cv::Point2f bottomRight;
@@ -347,11 +394,11 @@ void ExtractBoxPolygon(Mat& inputImage,
   {
     poly.clear();
 
-    cv::approxPolyDP(*itc, poly, 10, true);
+    cv::approxPolyDP(*itc, poly, 10, true); // Draws polygons around each contour
 
     if(poly.size() == 4)
     {
-
+      // Determine if this polygon is the box
       double maxCosine = 0;
       for(int j=2; j<5; j++)
       {
@@ -367,7 +414,10 @@ void ExtractBoxPolygon(Mat& inputImage,
         originalBoxPoints[2] = poly[3];
         originalBoxPoints[3] = poly[2];
         FindVerticesOfBox(poly, topLeft, topRight, bottomRight, bottomLeft);
-        angle = FindAngle(bottomRight, cv::Point2f((bottomLeft.x+15), (bottomLeft.y)), bottomLeft);
+        //angle = FindAngle(bottomRight, cv::Point2f((bottomLeft.x+15), (bottomLeft.y)), bottomLeft);
+        angle = acos(FindAngle(bottomRight, cv::Point2f((center.x+15), (center.y)), center));
+        printf("\r Calculated angle: %f radians\n", angle);
+        printf("\r Which is: %f degrees\n", (angle*(180/M_PI)));
         ++itc;
       }
       else
@@ -381,16 +431,8 @@ void ExtractBoxPolygon(Mat& inputImage,
     }
   }
   floodFill(inputImage, Point(0,0), 0);
-  imshow("Function Thing?", inputImage);
 
-  Point center = Point(inputImage.cols/2, inputImage.rows/2);
-  cv::Mat center_rotation_matrix(2,3,CV_32FC1);
-  center_rotation_matrix = getRotationMatrix2D(center,(-1*angle), 1.0);
-  ApplyTransformToAPoint(topLeft, center_rotation_matrix);
-  ApplyTransformToAPoint(topRight, center_rotation_matrix);
-  ApplyTransformToAPoint(bottomRight, center_rotation_matrix);
-  ApplyTransformToAPoint(bottomLeft, center_rotation_matrix);
-  //warpAffine(inputImage, inputImage, center_rotation_matrix, inputImage.size());
+  GenerateRotationMatrix(inputImage, angle, &topLeft, &topRight, &bottomRight, &bottomLeft);
 
 }
 
