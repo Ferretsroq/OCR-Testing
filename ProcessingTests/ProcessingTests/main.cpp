@@ -27,7 +27,13 @@ void SaveFile(Mat& image, const char* path, const string& description);
 double FindAngle( cv::Point pt1, cv::Point pt2, cv::Point pt0 );
 void FillInHollowLetters(Mat& image);
 void SweepForNoise(Mat& image);
-void DetectFourthLetter(Mat& image, Mat& extractedImage);
+void SegmentImage(Mat& image,
+                  Mat& firstLetter,
+                  Mat& secondLetter,
+                  Mat& thirdLetter,
+                  Mat& fourthLetter,
+                  Mat& segmentedImage);
+
 void ApplyTransformToAPoint(Point2f& point, Mat& transformMatrix);
 void ExtractContoursFromColorImage(Mat& inputImage,
                                    Mat& outputImage,
@@ -53,6 +59,9 @@ void GenerateRotationMatrix(Mat& inputImage,
                             cv::Point2f* topRight,
                             cv::Point2f* bottomRight,
                             cv::Point2f* bottomLeft);
+void CorrectSmearing(Mat& inputImage);
+void CleanIndividualLetter(Mat& letterImage);
+void CleanSegmentedImage(Mat& segmentedImage);
 
 int main(int argc, char * const * argv)
 {
@@ -117,129 +126,6 @@ int main(int argc, char * const * argv)
     warpPerspective(result, result, affine_matrix, result.size());
 
 
-    imshow("Transformed", result);
-    waitKey(0);
-
-    cv::Mat extractedU(inputImage.size(),CV_8UC1,cv::Scalar(255));
-    cv::Mat extractedUContours(inputImage.size(),CV_8UC1,cv::Scalar(255));
-
-
-   /* DetectFourthLetter(result, extractedU);
-    Point2f referenceUPoints[5];
-    Point2f originalUPoints[5];
-
-    referenceUPoints[0] = Point2f(180,233);
-    referenceUPoints[1] = Point2f(200,275);
-    referenceUPoints[2] = Point2f(211,231);
-    referenceUPoints[3] = Point2f(215,281);
-    referenceUPoints[4] = Point2f(184,283);
-     for(int corners=0; corners<5; corners++)
-     {
-       line(extractedBox , referenceUPoints[corners], referenceUPoints[(corners+1)%5], Scalar(0), 1, 8);
-     }
-
-    std::vector<std::vector<cv::Point>> Ucontours;
-
-    cv::findContours(extractedU,
-                     Ucontours,
-                     CV_RETR_LIST,
-                     CV_CHAIN_APPROX_NONE);
-
-    itc = Ucontours.begin();
-    while(itc != Ucontours.end())
-    {
-      if(itc->size() < cmin || itc->size() > cmax)
-      {
-        itc = Ucontours.erase(itc);
-      }
-      else
-      {
-        ++itc;
-      }
-
-    }
-    cv::drawContours(extractedUContours, Ucontours, -1, 128,2);
-    cv::floodFill(extractedUContours, Point(0,0), 0);
-    for(int i=0; i<extractedUContours.cols; i++)
-    {
-      for(int j=0; j<extractedUContours.rows; j++)
-      {
-        if(extractedUContours.at<uchar>(j,i) == 0)
-        {
-          extractedUContours.at<uchar>(j,i) = 255;
-        }
-        else
-        {
-          extractedUContours.at<uchar>(j,i) = 0;
-        }
-      }
-    }
-    Ucontours.clear();
-    cv::findContours(extractedUContours,
-                     Ucontours,
-                     CV_RETR_LIST,
-                     CV_CHAIN_APPROX_NONE);
-    for(int i=0; i<extractedUContours.cols; i++)
-    {
-      for(int j=0; j<extractedUContours.rows; j++)
-      {
-        extractedUContours.at<uchar>(j,i) = 255;
-      }
-    }
-    itc = Ucontours.begin();
-    while(itc != Ucontours.end())
-    {
-      if(itc->size() < cmin || itc->size() > cmax)
-      {
-        itc = Ucontours.erase(itc);
-      }
-      else
-      {
-        ++itc;
-      }
-
-    }
-
-    cv::drawContours(extractedUContours, Ucontours, -1, 0,2);
-    cv::cvtColor(extractedUContours, extractedUContours, CV_GRAY2BGR);
-    itc = Ucontours.begin();
-    while(itc != Ucontours.end())
-    {
-      poly.clear();
-
-      cv::approxPolyDP(*itc, poly, 10, true);
-      printf("\rPoly size is %lu\n", poly.size());
-      printf("\r0: %d %d\n",poly[0].x, poly[0].y);
-      printf("\r1: %d %d\n",poly[1].x, poly[1].y);
-      printf("\r2: %d %d\n",poly[2].x, poly[2].y);
-      printf("\r3: %d %d\n",poly[3].x, poly[3].y);
-      printf("\r4: %d %d\n",poly[4].x, poly[4].y);
-
-      polylines(extractedUContours,poly,true,Scalar(0,0,255),1);
-      if(poly.size() == 5)
-      {
-        originalUPoints[0] = poly[3];
-        originalUPoints[1] = poly[4];
-        originalUPoints[2] = poly[0];
-        originalUPoints[3] = poly[1];
-        originalUPoints[4] = poly[2];
-      }
-      ++itc;
-    }
-   // for(int corners=0; corners<5; corners++)
-   // {
-   //   line(extractedUContours, referenceUPoints[corners], referenceUPoints[(corners+1)%5], Scalar(0), 1, 8);
-   // }
-
-    imshow("Extracted U",extractedUContours);
-    cv::Mat new_affine_matrix(3,3,CV_32FC1);
-
-    new_affine_matrix = getAffineTransform(originalUPoints, referenceUPoints);
-    warpAffine(extractedUContours, extractedUContours, new_affine_matrix, extractedUContours.size());
-    //warpAffine(result, result, new_affine_matrix, result.size());
-    imshow("New Transformed",result);
-    imshow("Transformed U", extractedUContours);
-*/
     for(int j=0; j<result.rows; j++)
     {
       for(int i=0; i<result.cols; i++)
@@ -258,31 +144,27 @@ int main(int argc, char * const * argv)
       }
     }
     FillInHollowLetters(result);
+    CorrectSmearing(result);
 
-    imshow("Hollow Letters", result);
-    waitKey(0);
+    cv::Mat firstLetter(inputImage.size(),CV_8UC1,cv::Scalar(255));
+    cv::Mat secondLetter(inputImage.size(),CV_8UC1,cv::Scalar(255));
+    cv::Mat thirdLetter(inputImage.size(),CV_8UC1,cv::Scalar(255));
+    cv::Mat fourthLetter(inputImage.size(),CV_8UC1,cv::Scalar(255));
+    cv::Mat segmentedImage(inputImage.size(),CV_8UC1,cv::Scalar(255));
 
-    for(int i=0; i<result.cols; i++)
-    {
-      for(int j=0; j<result.rows; j++)
-      {
-        if(result.at<uchar>(j,i) == 0)
-        {
-          result.at<uchar>(j,i) = 255;
-        }
-        else
-        {
-          result.at<uchar>(j,i) = 0;
-        }
-      }
-    }
+    SegmentImage(result, firstLetter, secondLetter, thirdLetter, fourthLetter, segmentedImage);
+    CleanIndividualLetter(firstLetter);
+    CleanIndividualLetter(secondLetter);
+    CleanIndividualLetter(thirdLetter);
+    CleanIndividualLetter(fourthLetter);
+    CleanSegmentedImage(segmentedImage);
 
-    imshow("Filled contours", result);
+    TesseractOCR(firstLetter);
+    TesseractOCR(secondLetter);
+    TesseractOCR(thirdLetter);
+    TesseractOCR(fourthLetter);
+    TesseractOCR(segmentedImage);
 
-    SweepForNoise(result);
-    imshow("Noise Reduced Contours", result);
-
-    TesseractOCR(result);
 
   }
   waitKey(0);
@@ -299,6 +181,72 @@ int main(int argc, char * const * argv)
 //------------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------------
+// This function takes a segmented image and processes it for OCR
+void CleanSegmentedImage(Mat& segmentedImage)
+{
+  floodFill(segmentedImage, Point(0,0), 0);
+  floodFill(segmentedImage, Point(719,0), 0);
+  for(int i=0; i<segmentedImage.cols; i++)
+  {
+    for(int j=0; j<segmentedImage.rows; j++)
+    {
+      if(segmentedImage.at<uchar>(j,i) == 0)
+      {
+        segmentedImage.at<uchar>(j,i) = 255;
+      }
+      else
+      {
+        segmentedImage.at<uchar>(j,i) = 0;
+      }
+    }
+  }
+  SweepForNoise(segmentedImage);
+}
+
+//------------------------------------------------------------------------------------
+// This function takes an image of only one letter and processes it for OCR
+void CleanIndividualLetter(Mat& letterImage)
+{
+  floodFill(letterImage, Point(0,0), 0);
+  floodFill(letterImage, Point(719,0), 0);
+  for(int i=0; i<letterImage.cols; i++)
+  {
+    for(int j=0; j<letterImage.rows; j++)
+    {
+      if(letterImage.at<uchar>(j,i) == 0)
+      {
+        letterImage.at<uchar>(j,i) = 255;
+      }
+      else
+      {
+        letterImage.at<uchar>(j,i) = 0;
+      }
+    }
+  }
+}
+
+
+//------------------------------------------------------------------------------------
+// This function should correct the smearing inside of characters
+void CorrectSmearing(Mat& inputImage)
+{
+  for(int i=0; i<inputImage.cols;i++)
+  {
+    for(int j=1; j<inputImage.rows-1;j++)
+    {
+      if( (inputImage.at<uchar>(j,i) == 0) &&
+        ((inputImage.at<uchar>((j+1),i) == 255) ||
+        (inputImage.at<uchar>((j-1),i) == 255)) )
+      {
+        inputImage.at<uchar>(j,i) = 255;
+      }
+    }
+  }
+
+}
+
+
+//------------------------------------------------------------------------------------
 // This function generates the matrix necessary for rotating the image.
 // TODO: Make this function actually work
 void GenerateRotationMatrix(Mat& inputImage,
@@ -311,17 +259,12 @@ void GenerateRotationMatrix(Mat& inputImage,
   // This allows me to rotate about the center of the image rather than the origin
   Point center = Point(inputImage.cols/2, inputImage.rows/2);
   cv::Mat center_rotation_matrix(2,3,CV_32FC1);
-  printf("\rVerifying that the angle to be used is %f degrees\n.", angle*(180/M_PI));
   center_rotation_matrix = getRotationMatrix2D(center,((-1*(angle*(180/M_PI)/6))), 0.8);
-  //center_rotation_matrix = getRotationMatrix2D(center, angle, 1.0);
-  //center_rotation_matrix = getRotationMatrix2D(center, (-1*angle), 1.0);
   ApplyTransformToAPoint(*topLeft, center_rotation_matrix);
   ApplyTransformToAPoint(*topRight, center_rotation_matrix);
   ApplyTransformToAPoint(*bottomRight, center_rotation_matrix);
   ApplyTransformToAPoint(*bottomLeft, center_rotation_matrix);
-  imshow("No Rotation", inputImage);
   warpAffine(inputImage, inputImage, center_rotation_matrix, inputImage.size());
-  imshow("Just Rotation", inputImage);
 }
 
 //------------------------------------------------------------------------------------
@@ -348,7 +291,7 @@ void TesseractOCR(Mat& inputImage)
       int y = b->y;
       int w = b->w;
       int h = b->h;
-      std::cout<<x<<" "<<y<<" "<<w<<" "<<h<<std::endl;
+      //std::cout<<x<<" "<<y<<" "<<w<<" "<<h<<std::endl;
       cv::rectangle(inputImage, Point(x,y), Point((x+w),(y+h)), Scalar(0,255,255),1,8,0);
     }
   }
@@ -496,46 +439,73 @@ void ApplyTransformToAPoint(Point2f& point, Mat& transformMatrix)
 //------------------------------------------------------------------------------------
 // This function will detect the fourth letter in the image.
 
-void DetectFourthLetter(Mat& image, Mat& extractedImage)
+void SegmentImage(Mat& inputImage,
+                  Mat& firstLetter,
+                  Mat& secondLetter,
+                  Mat& thirdLetter,
+                  Mat& fourthLetter,
+                  Mat& segmentedImage)
 {
   bool letterToggle = false;
   bool hitTheFirstLetter = false;
   bool hitTheSecondLetter = false;
   bool hitTheThirdLetter = false;
   bool hitTheFourthLetter = false;
-  for(int i=0; i<image.cols; i++)
+  bool beyondTheFourthLetter = false;
+
+  for(int i=0; i<inputImage.cols; i++)
   {
     int whiteCount = 0;
 
-    for(int j=0; j<image.rows; j++)
+    for(int j=0; j<inputImage.rows; j++)
     {
-      if((image.at<uchar>(j,i) == 255) || (image.at<uchar>(j,(i-1)) == 255) || (image.at<uchar>(j,(i+1)) == 255))
+      if((inputImage.at<uchar>(j,i) == 255) || (inputImage.at<uchar>(j,(i-1)) == 255) || (inputImage.at<uchar>(j,(i+1)) == 255))
       {
         whiteCount++;
       }
-      if((image.at<uchar>(j,i) == 255) && !hitTheFirstLetter)
+      if((inputImage.at<uchar>(j,i) == 255) && !hitTheFirstLetter)
       {
         letterToggle = true;
         hitTheFirstLetter = true;
       }
-      if((image.at<uchar>(j,i) == 255) && hitTheFirstLetter && !letterToggle && !hitTheSecondLetter)
+      if(hitTheFirstLetter && !hitTheSecondLetter)
+      {
+        firstLetter.at<uchar>(j,i) = inputImage.at<uchar>(j,(i-5));
+      }
+      if((inputImage.at<uchar>(j,i) == 255) && hitTheFirstLetter && !letterToggle && !hitTheSecondLetter)
       {
         letterToggle = true;
         hitTheSecondLetter = true;
       }
-      if((image.at<uchar>(j,i) == 255) && hitTheSecondLetter && !letterToggle && !hitTheThirdLetter)
+      if(hitTheSecondLetter && !hitTheThirdLetter)
+      {
+        secondLetter.at<uchar>(j,i) = inputImage.at<uchar>(j,(i-5));
+      }
+      if((inputImage.at<uchar>(j,i) == 255) && hitTheSecondLetter && !letterToggle && !hitTheThirdLetter)
       {
         letterToggle = true;
         hitTheThirdLetter = true;
       }
-      if((image.at<uchar>(j,i) == 255) && hitTheThirdLetter && !letterToggle && !hitTheFourthLetter)
+      if(hitTheThirdLetter && !hitTheFourthLetter)
+      {
+        thirdLetter.at<uchar>(j,i) = inputImage.at<uchar>(j,(i-5));
+      }
+      if((inputImage.at<uchar>(j,i) == 255) && hitTheThirdLetter && !letterToggle && !hitTheFourthLetter)
       {
         letterToggle = true;
         hitTheFourthLetter = true;
       }
-      if((image.at<uchar>(j,i) == 255) && hitTheFourthLetter && letterToggle)
+      if(hitTheFourthLetter && letterToggle)
       {
-        extractedImage.at<uchar>(j,i) = 0;
+        fourthLetter.at<uchar>(j,i) = inputImage.at<uchar>(j,(i-1));
+      }
+      if(hitTheFourthLetter && !letterToggle)
+      {
+        beyondTheFourthLetter = true;
+      }
+      if(hitTheFourthLetter && beyondTheFourthLetter)
+      {
+        segmentedImage.at<uchar>(j,i) = inputImage.at<uchar>(j,i);
       }
     }
     if(whiteCount == 0)
@@ -543,7 +513,6 @@ void DetectFourthLetter(Mat& image, Mat& extractedImage)
       letterToggle = false;
     }
   }
-
 }
 
 //------------------------------------------------------------------------------------
