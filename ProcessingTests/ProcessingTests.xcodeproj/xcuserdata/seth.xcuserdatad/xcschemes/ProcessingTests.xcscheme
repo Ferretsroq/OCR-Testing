@@ -60,14 +60,6 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "-x"
-            isEnabled = "YES">
-         </CommandLineArgument>
-         <CommandLineArgument
-            argument = "./supportsDetector4.xml"
-            isEnabled = "YES">
-         </CommandLineArgument>
-         <CommandLineArgument
             argument = "/Users/seth/Developer/OpenCV/ProcessingTests/south_number.jpg"
             isEnabled = "YES">
          </CommandLineArgument>

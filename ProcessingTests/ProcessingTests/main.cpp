@@ -62,37 +62,17 @@ void GenerateRotationMatrix(Mat& inputImage,
 void CorrectSmearing(Mat& inputImage);
 void CleanIndividualLetter(Mat& letterImage);
 void CleanSegmentedImage(Mat& segmentedImage);
+void CorrectColorDistortion(Mat& inputImage);
+void GenerateAndApplyTransformations(Mat& inputImage, Mat& result);
 
 int main(int argc, char * const * argv)
 {
-    
-  int ch = 0;
-    
-  char *xml_filename = nullptr;
-    
-  while ((ch = getopt(argc, argv, "dx:")) != -1)
-  {
-    switch (ch) {
-      case 'x':
-        xml_filename = optarg;
-        break;
-      default:
-        Usage();
-    }
-  }
-  argc -= optind;
-  argv += optind;
-    
-  if (!xml_filename || argc == 0)
-  {
-    Usage();
-  }
     
   //Make empty image structures
   cv::Mat inputImage;
 
   //Enumerate through the image arguments. argv[1] is the detector xml file
-  for(int input=0; input<(argc); input++)
+  for(int input=1; input<(argc); input++)
   {
         
     inputImage = cv::imread(argv[input]);    //Read the image
@@ -104,47 +84,8 @@ int main(int argc, char * const * argv)
 
     imshow("Original Image", inputImage);
 
-    std::vector<std::vector<cv::Point>> contours;
     cv::Mat result(inputImage.size(),CV_8UC1,cv::Scalar(255));
-    cv::Mat extractedBox(inputImage.size(), CV_32FC1, cv::Scalar(255));
-    cv::Mat referenceBox(inputImage.size(), CV_32FC1, cv::Scalar(255));
-
-    ExtractContoursFromColorImage(inputImage, result, contours);
-
-    std::vector<cv::Point> poly;
-    cv::Point2f originalBoxPoints[4];
-    double angle = 0;
-
-    ExtractBoxPolygon(result, contours, poly, angle, originalBoxPoints);
-
-    Point2f referenceBoxPoints[4];
-    GenerateReferenceBox(result, referenceBoxPoints);
-
-
-    cv::Mat affine_matrix(3,3,CV_32FC1);
-    affine_matrix = getPerspectiveTransform(originalBoxPoints, referenceBoxPoints);
-    warpPerspective(result, result, affine_matrix, result.size());
-
-
-    for(int j=0; j<result.rows; j++)
-    {
-      for(int i=0; i<result.cols; i++)
-      {
-        if(result.at<uchar>(j,i) != 0)
-        {
-          if(result.at<uchar>(j,i) >= 10 && result.at<uchar>(j,i) <= 150)
-          {
-            result.at<uchar>(j,i) = 128;
-          }
-          else if(result.at<uchar>(j,i) > 150)
-          {
-            result.at<uchar>(j,i) = 255;
-          }
-        }
-      }
-    }
-    FillInHollowLetters(result);
-    CorrectSmearing(result);
+    GenerateAndApplyTransformations(inputImage, result);
 
     cv::Mat firstLetter(inputImage.size(),CV_8UC1,cv::Scalar(255));
     cv::Mat secondLetter(inputImage.size(),CV_8UC1,cv::Scalar(255));
@@ -179,6 +120,61 @@ int main(int argc, char * const * argv)
 //------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------------
+// This function consolidates and performs all of the geometric and color transforms
+// on the original image.
+void GenerateAndApplyTransformations(Mat& inputImage, Mat& result)
+{
+  std::vector<std::vector<cv::Point>> contours;
+  cv::Mat extractedBox(inputImage.size(), CV_32FC1, cv::Scalar(255));
+  cv::Mat referenceBox(inputImage.size(), CV_32FC1, cv::Scalar(255));
+
+  ExtractContoursFromColorImage(inputImage, result, contours);
+
+  std::vector<cv::Point> poly;
+  cv::Point2f originalBoxPoints[4];
+  double angle = 0;
+
+  ExtractBoxPolygon(result, contours, poly, angle, originalBoxPoints);
+
+  Point2f referenceBoxPoints[4];
+  GenerateReferenceBox(result, referenceBoxPoints);
+
+
+  cv::Mat affine_matrix(3,3,CV_32FC1);
+  affine_matrix = getPerspectiveTransform(originalBoxPoints, referenceBoxPoints);
+  warpPerspective(result, result, affine_matrix, result.size());
+
+  CorrectColorDistortion(result);
+  FillInHollowLetters(result);
+  CorrectSmearing(result);
+
+}
+
+//------------------------------------------------------------------------------------
+// This function corrects some color distortion that comes from the geometric
+// transforms.
+void CorrectColorDistortion(Mat& inputImage)
+{
+  for(int j=0; j<inputImage.rows; j++)
+  {
+    for(int i=0; i<inputImage.cols; i++)
+    {
+      if(inputImage.at<uchar>(j,i) != 0)
+      {
+        if(inputImage.at<uchar>(j,i) >= 10 && inputImage.at<uchar>(j,i) <= 150)
+        {
+          inputImage.at<uchar>(j,i) = 128;
+        }
+        else if(inputImage.at<uchar>(j,i) > 150)
+        {
+          inputImage.at<uchar>(j,i) = 255;
+        }
+      }
+    }
+  }
+}
 
 //------------------------------------------------------------------------------------
 // This function takes a segmented image and processes it for OCR
@@ -357,10 +353,7 @@ void ExtractBoxPolygon(Mat& inputImage,
         originalBoxPoints[2] = poly[3];
         originalBoxPoints[3] = poly[2];
         FindVerticesOfBox(poly, topLeft, topRight, bottomRight, bottomLeft);
-        //angle = FindAngle(bottomRight, cv::Point2f((bottomLeft.x+15), (bottomLeft.y)), bottomLeft);
         angle = acos(FindAngle(bottomRight, cv::Point2f((center.x+15), (center.y)), center));
-        printf("\r Calculated angle: %f radians\n", angle);
-        printf("\r Which is: %f degrees\n", (angle*(180/M_PI)));
         ++itc;
       }
       else
