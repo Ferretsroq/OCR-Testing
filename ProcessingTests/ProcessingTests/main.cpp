@@ -82,11 +82,8 @@ int main(int argc, char * const * argv)
       return true;
     }
 
-    //imshow("Original Image", inputImage);
-
     cv::Mat result(inputImage.size(),CV_8UC1,cv::Scalar(255));
     GenerateAndApplyTransformations(inputImage, result);
-
 
     cv::Mat firstLetter(inputImage.size(),CV_8UC1,cv::Scalar(255));
     cv::Mat secondLetter(inputImage.size(),CV_8UC1,cv::Scalar(255));
@@ -101,15 +98,13 @@ int main(int argc, char * const * argv)
     CleanIndividualLetter(fourthLetter);
     CleanSegmentedImage(segmentedImage);
 
-
     TesseractOCR(firstLetter);
     TesseractOCR(secondLetter);
     TesseractOCR(thirdLetter);
     TesseractOCR(fourthLetter);
     TesseractOCR(segmentedImage);
   }
-  //waitKey(0);
-    
+
   return 0;
 }
 
@@ -173,10 +168,12 @@ void GenerateAndApplyTransformations(Mat& inputImage, Mat& result)
 // transforms.
 void CorrectColorDistortion(Mat& inputImage)
 {
+  // Iterate through rows and columns to address each pixel independently
   for(int j=0; j<inputImage.rows; j++)
   {
     for(int i=0; i<inputImage.cols; i++)
     {
+      // Geometric transforms distort colors - need to correct
       if(inputImage.at<uchar>(j,i) != 0)
       {
         if(inputImage.at<uchar>(j,i) >= 10 && inputImage.at<uchar>(j,i) <= 150)
@@ -198,8 +195,11 @@ void CorrectColorDistortion(Mat& inputImage)
 // many characters.
 void CleanSegmentedImage(Mat& segmentedImage)
 {
+  // Need to have uniform background color, segementation makes some parts different colors
   floodFill(segmentedImage, Point(0,0), 0);
   floodFill(segmentedImage, Point(719,0), 0);
+
+  // Iterate through columns and rows, invert colors
   for(int i=0; i<segmentedImage.cols; i++)
   {
     for(int j=0; j<segmentedImage.rows; j++)
@@ -214,6 +214,7 @@ void CleanSegmentedImage(Mat& segmentedImage)
       }
     }
   }
+  // Need to clean up background noise
   SweepForNoise(segmentedImage);
 }
 
@@ -221,8 +222,11 @@ void CleanSegmentedImage(Mat& segmentedImage)
 // This function takes an image of only one letter and processes it for OCR.
 void CleanIndividualLetter(Mat& letterImage)
 {
+  // Need to have uniform background color, segementation makes some parts different colors
   floodFill(letterImage, Point(0,0), 0);
   floodFill(letterImage, Point(719,0), 0);
+
+  // Iterate through columns and rows, invert colors
   for(int i=0; i<letterImage.cols; i++)
   {
     for(int j=0; j<letterImage.rows; j++)
@@ -245,10 +249,13 @@ void CleanIndividualLetter(Mat& letterImage)
 // in shape.
 void CorrectSmearing(Mat& inputImage)
 {
+  // Iterate through columns and rows
   for(int i=0; i<inputImage.cols;i++)
   {
     for(int j=1; j<inputImage.rows-1;j++)
     {
+      // Need to address black pixels that are directly adjacent to white pixels
+      // and set them to white
       if( (inputImage.at<uchar>(j,i) == 0) &&
         ((inputImage.at<uchar>((j+1),i) == 255) ||
         (inputImage.at<uchar>((j-1),i) == 255)) )
@@ -272,10 +279,12 @@ void GenerateAndApplyRotationMatrix(Mat& inputImage,
                             cv::Point2f* bottomRight,
                             cv::Point2f* bottomLeft)
 {
-  // This allows me to rotate about the center of the image rather than the origin
+  // This allows rotation about the center of the image rather than the origin
   Point center = Point(inputImage.cols/2, inputImage.rows/2);
   cv::Mat center_rotation_matrix(2,3,CV_32FC1);
   center_rotation_matrix = getRotationMatrix2D(center,((-1*(angle*(180/M_PI)/6))), 0.8);
+
+  // Need to apply rotation to individual points in order to generate the next transforms
   ApplyTransformToAPoint(*topLeft, center_rotation_matrix);
   ApplyTransformToAPoint(*topRight, center_rotation_matrix);
   ApplyTransformToAPoint(*bottomRight, center_rotation_matrix);
@@ -287,6 +296,7 @@ void GenerateAndApplyRotationMatrix(Mat& inputImage,
 // This function runs the OCR package on an image and prints the text detected.
 void TesseractOCR(Mat& inputImage)
 {
+  // Define the image to be OCR'd
   tesseract::TessBaseAPI tess;
   tess.Init(NULL, "eng", tesseract::OEM_DEFAULT);
   tess.SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
@@ -295,8 +305,9 @@ void TesseractOCR(Mat& inputImage)
   // Get the text
   char* out = tess.GetUTF8Text();
   std::cout << out << std::endl;
+
   //box
-  Boxa* bounds = tess.GetWords(NULL);
+  /*Boxa* bounds = tess.GetWords(NULL);
   if(bounds)
   {
     l_int32 count = bounds->n;
@@ -314,8 +325,7 @@ void TesseractOCR(Mat& inputImage)
   else
   {
     printf("\rNo text detected\n");
-  }
-  //imshow("OCR'd Image", inputImage);
+  }*/
 
 }
 
@@ -335,7 +345,6 @@ void GenerateReferenceBox(Mat& inputImage, cv::Point2f* referenceBoxPoints)
 
 //------------------------------------------------------------------------------------
 // This function scans the contours of an image and looks for the warped box.
-// TODO: Expand this to search for any polygon instead of only a box.
 void ExtractBoxPolygon(Mat& inputImage,
                        std::vector<std::vector<cv::Point>>& contours,
                        std::vector<cv::Point>& poly,
@@ -356,9 +365,10 @@ void ExtractBoxPolygon(Mat& inputImage,
 
     cv::approxPolyDP(*itc, poly, 10, true); // Draws polygons around each contour
 
+    // Only need 4-sided polygons
     if(poly.size() == 4)
     {
-      // Determine if this polygon is the box
+      // Determine if this polygon is the box using the angles between the sides
       double maxCosine = 0;
       for(int j=2; j<5; j++)
       {
@@ -389,6 +399,7 @@ void ExtractBoxPolygon(Mat& inputImage,
   }
   floodFill(inputImage, Point(0,0), 0);
 
+  // Use the box to create transformations
   GenerateAndApplyRotationMatrix(inputImage, angle, &topLeft, &topRight, &bottomRight, &bottomLeft);
 
 }
@@ -398,13 +409,17 @@ void ExtractBoxPolygon(Mat& inputImage,
 // This function takes a BGR color image and extracts the contours from it.
 void ExtractContoursFromColorImage(Mat& inputImage, Mat& outputImage,std::vector<std::vector<cv::Point>>& contours)
 {
+  // Image must be grayscale
   cv::cvtColor(inputImage, inputImage, CV_BGR2GRAY);
+  // Canny edge operator as first filter
   Canny(inputImage, inputImage, 100, 200);
+  // Extract every contour in the image
   cv::findContours(inputImage,
                    contours,
                    CV_RETR_LIST,
                    CV_CHAIN_APPROX_NONE);
 
+  // Filter for contours that are too small or too big
   int cmin = 50;
   int cmax = 1000;
   std::vector<std::vector<cv::Point>>::iterator itc = contours.begin();
@@ -419,6 +434,7 @@ void ExtractContoursFromColorImage(Mat& inputImage, Mat& outputImage,std::vector
       ++itc;
     }
   }
+  // Draw the contours onto an image for further processing
   cv::drawContours(outputImage, contours, -1, 128,2);
 }
 
@@ -441,6 +457,7 @@ void FindVerticesOfBox(std::vector<cv::Point> poly,
 // This function will apply a matrix transformation to individual points
 void ApplyTransformToAPoint(Point2f& point, Mat& transformMatrix)
 {
+  // Matrix math to apply transformations to individual 2-D points
   Mat_<double> pointMatrix(3,1);
   Mat_<double> pointResult(3,1);
   pointMatrix << point.x,point.y,1.0;
@@ -467,6 +484,9 @@ void SegmentImage(Mat& inputImage,
   bool hitTheFourthLetter = false;
   bool beyondTheFourthLetter = false;
 
+  // Iterate through columns and rows
+  // Determine where letters are by detecting how many white pixels are present
+  // Count each letter out and segment them away into new images
   for(int i=0; i<inputImage.cols; i++)
   {
     int whiteCount = 0;
@@ -540,6 +560,8 @@ void FillInHollowLetters(Mat& image)
     bool inAHollowLetter = false;
     bool hitWhiteSpace = false;
     bool fillingInHasBegun = false;
+    // Iterate through columns and rows
+    // Detect the state of each pixel, and color appropriately
     for(int i=0; i<(image.cols-1); i++)
     {
 
@@ -584,6 +606,8 @@ void FillInHollowLetters(Mat& image)
 void SweepForNoise(Mat& image)
 {
   int blackPixelCount = 0;
+  // Scan horizontally
+  // Any row without enough substance is assumed to be noise - erase
   for(int j=0; j<image.rows; j++)
   {
     blackPixelCount = 0;
@@ -603,6 +627,8 @@ void SweepForNoise(Mat& image)
     }
   }
 
+  // Scan vertically
+  // Any row without enough substance is assumed to be noise - erase
   for(int i=0; i<image.cols; i++)
   {
     blackPixelCount = 0;
