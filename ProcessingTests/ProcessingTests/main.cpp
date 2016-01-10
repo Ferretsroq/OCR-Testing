@@ -82,6 +82,7 @@ int main(int argc, char * const * argv)
       return true;
     }
 
+    imshow("Original Image", inputImage);
     cv::Mat result(inputImage.size(),CV_8UC1,cv::Scalar(255));
     GenerateAndApplyTransformations(inputImage, result);
 
@@ -97,12 +98,14 @@ int main(int argc, char * const * argv)
     CleanIndividualLetter(thirdLetter);
     CleanIndividualLetter(fourthLetter);
     CleanSegmentedImage(segmentedImage);
+    imshow("Things", segmentedImage);
 
     TesseractOCR(firstLetter);
     TesseractOCR(secondLetter);
     TesseractOCR(thirdLetter);
     TesseractOCR(fourthLetter);
     TesseractOCR(segmentedImage);
+    waitKey(0);
   }
 
   return 0;
@@ -145,6 +148,7 @@ void GenerateAndApplyTransformations(Mat& inputImage, Mat& result)
   cv::Mat affine_matrix(3,3,CV_32FC1);
   affine_matrix = getPerspectiveTransform(originalBoxPoints, referenceBoxPoints);
   warpPerspective(result, result, affine_matrix, result.size());
+  imshow("Transformed Image", result);
 
   // Geometric transformations distort the colors of the image slightly.
   // Some operations are dependent on pixels being specific colors, so
@@ -155,11 +159,13 @@ void GenerateAndApplyTransformations(Mat& inputImage, Mat& result)
   // differently before continuing. This fills in the hollow spaces so that
   // they retain their shape.
   FillInHollowLetters(result);
+  imshow("Filled Letters", result);
 
   // Some distortions in shape will result in unwanted smears of black in the
   // middle of letters. This function corrects those smears to preserve the
   // desired shape.
   CorrectSmearing(result);
+  imshow("Corrected Smearing", result);
 
 }
 
@@ -413,6 +419,8 @@ void ExtractContoursFromColorImage(Mat& inputImage, Mat& outputImage,std::vector
   cv::cvtColor(inputImage, inputImage, CV_BGR2GRAY);
   // Canny edge operator as first filter
   Canny(inputImage, inputImage, 100, 200);
+  imshow("Canny Edges", inputImage);
+
   // Extract every contour in the image
   cv::findContours(inputImage,
                    contours,
@@ -436,6 +444,8 @@ void ExtractContoursFromColorImage(Mat& inputImage, Mat& outputImage,std::vector
   }
   // Draw the contours onto an image for further processing
   cv::drawContours(outputImage, contours, -1, 128,2);
+  imshow("Contours", outputImage);
+
 }
 
 //------------------------------------------------------------------------------------
